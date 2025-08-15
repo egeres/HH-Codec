@@ -162,11 +162,22 @@ class audioDatasetModule(L.LightningDataModule):
                     train_file_list.extend(f.readlines())
             random.shuffle(train_file_list)
             self.train = audioDataset(train_file_list,65536,False)
+            
+            # Create validation dataset for fit stage
+            with open(self.val_dataset_path, 'r') as f:
+                val_file_list = f.readlines()
+            self.val = audioDataset(val_file_list,65536,False)
+            
         if stage == "test" or stage is None:
-            self.test = audioDataset(self.val_dataset_path,65536,False)
+            with open(self.val_dataset_path, 'r') as f:
+                val_file_list = f.readlines()
+            self.test = audioDataset(val_file_list,65536,False)
 
     def train_dataloader(self):
         return DataLoader(self.train, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True,collate_fn=self.pad_collate_fn)
+
+    def val_dataloader(self):
+        return DataLoader(self.val, batch_size=self.batch_size, num_workers=self.num_workers,shuffle=False, collate_fn=self.pad_collate_fn)
 
     def test_dataloader(self):
         return DataLoader(self.test, batch_size=self.batch_size, num_workers=self.num_workers,shuffle=False, collate_fn=self.pad_collate_fn)
