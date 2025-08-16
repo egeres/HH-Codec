@@ -183,21 +183,21 @@ class LitEma(nn.Module):
             shadow_params = dict(self.named_buffers())
 
             for key in m_param:
-                if m_param[key].requires_grad:
+                if m_param[key].requires_grad and key in self.m_name2s_name:
                     sname = self.m_name2s_name[key]
                     shadow_params[sname] = shadow_params[sname].type_as(m_param[key])
                     shadow_params[sname].sub_(one_minus_decay * (shadow_params[sname] - m_param[key]))
-                else:
-                    assert not key in self.m_name2s_name
+                # Skip parameters that don't require gradients or aren't in EMA tracking
+                # This can happen during distributed training or when parameter status changes
 
     def copy_to(self, model):
         m_param = dict(model.named_parameters())
         shadow_params = dict(self.named_buffers())
         for key in m_param:
-            if m_param[key].requires_grad:
+            if m_param[key].requires_grad and key in self.m_name2s_name:
                 m_param[key].data.copy_(shadow_params[self.m_name2s_name[key]].data)
-            else:
-                assert not key in self.m_name2s_name
+            # Skip parameters that don't require gradients or aren't in EMA tracking
+            # This can happen during distributed training or when parameter status changes
 
     def store(self, parameters):
         """
