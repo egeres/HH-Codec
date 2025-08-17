@@ -53,6 +53,7 @@ model:
     learning_rate: 1e-4
     scheduler_type: "None"
     use_ema: true
+    accumulation_steps: 8  # Manual gradient accumulation for batch_size=1
 
 data:
   class_path: hhcodec.data.speechtokenizer_24k.SpeechTokenizerDataModule

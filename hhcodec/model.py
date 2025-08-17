@@ -58,6 +58,8 @@ class VQModel(L.LightningModule):
                  min_learning_rate = 0,
                  use_ema = False,
                  stage = None,
+                 ### gradient accumulation for manual optimization
+                 accumulation_steps = 8,
                  ):
         super().__init__()
         self.encoder = Encoder(**ddconfig)
@@ -114,6 +116,7 @@ class VQModel(L.LightningModule):
         self.min_learning_rate = min_learning_rate
         self.automatic_optimization = False
         self.strict_loading = False
+        self.accumulation_steps = accumulation_steps
 
     @contextmanager
     def ema_scope(self, context=None):
@@ -237,6 +240,11 @@ class VQModel(L.LightningModule):
         # scheduler_gen, scheduler_disc = self.lr_schedulers()
         if self.scheduler_type != "None":
             scheduler_gen,scheduler_disc = self.lr_schedulers()
+        
+        # Use manual gradient accumulation steps
+        accumulate_grad_batches = self.accumulation_steps
+        is_accumulating = (batch_idx + 1) % accumulate_grad_batches != 0
+        
         ####################
         # fix global step bug
         # refer to https://github.com/Lightning-AI/pytorch-lightning/issues/17958
@@ -248,28 +256,52 @@ class VQModel(L.LightningModule):
         # optimize generator
         loss_distill = self.d_axis_distill_loss(feature, semantic_feature)
         aeloss, log_dict_ae = self.loss(loss_distill,eloss, loss_break,mel,mel_rec ,x, xrec, 0, self.global_step,split="train")
-        opt_gen.zero_grad()
+        
+        # Scale loss by accumulation steps for proper gradient averaging
+        aeloss = aeloss / accumulate_grad_batches
+        
+        # Zero gradients only on first accumulation step
+        if (batch_idx % accumulate_grad_batches) == 0:
+            opt_gen.zero_grad()
+        
         self.manual_backward(aeloss)
-        opt_gen.step()
-        # scheduler_gen.step()
-        if self.scheduler_type != "None":
-            scheduler_gen.step()
+        
+        # Only step and update scheduler if we're not accumulating
+        if not is_accumulating:
+            opt_gen.step()
+            if self.scheduler_type != "None":
+                scheduler_gen.step()
+        
         log_dict_ae["train/codebook_util"] = torch.tensor(sum(self.codebook_count) / len(self.codebook_count))
 
         # optimize discriminator
         discloss, log_dict_disc = self.loss(loss_distill,eloss, loss_break, mel,mel_rec,x, xrec, 1, self.global_step,
                                             split="train")
-        opt_disc.zero_grad()
+        
+        # Scale loss by accumulation steps for proper gradient averaging
+        discloss = discloss / accumulate_grad_batches
+        
+        # Zero gradients only on first accumulation step
+        if (batch_idx % accumulate_grad_batches) == 0:
+            opt_disc.zero_grad()
+        
         self.manual_backward(discloss)
-        opt_disc.step()
-        # scheduler_disc.step()
-        if self.scheduler_type != "None":
-            scheduler_disc.step()
-        if torch.distributed.get_rank() == 0:
+        
+        # Only step and update scheduler if we're not accumulating
+        if not is_accumulating:
+            opt_disc.step()
+            if self.scheduler_type != "None":
+                scheduler_disc.step()
+        
+        if torch.distributed.get_rank() == 0 and not is_accumulating:
             print(log_dict_ae, log_dict_disc)
 
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True)
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+        # Only log on steps where we actually update (not during accumulation)
+        if not is_accumulating:
+            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
 
     def on_train_batch_end(self, *args, **kwargs):
         if self.use_ema and self.current_epoch >= 10:
