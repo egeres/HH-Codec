@@ -1,5 +1,10 @@
 
 # HH-Codec: High Compression High-fidelity Discrete Neural Codec for Spoken Language Modeling
+
+<p align="center">
+  English | <a href="README_zh.md">中文</a>
+</p>
+
 <p align="center">
   If you find this project useful, please give us a star 🌟.
 </p>
@@ -47,15 +52,26 @@ pip install pip==24.0
 ## 🚀 Train
 
 ### Step 1: Prepare the Training Dataset
-Ensure your dataset is preprocessed by following the instructions in [`dataset`](dataset)
+Ensure your dataset is preprocessed by following the instructions in [`dataset`](dataset),
+After running the script, a file will be generated at REP_PATH :
+```json
+  dataset/Hubert/libritts_train_clean_100.txt
+```
+Each line maps the original audio file path to its corresponding HuBERT embedding location.
+
+The following datasets need to be processed in this manner to achieve the metrics stated in the paper:
+- [LibriSpeech](http://www.openslr.org/12)  
+- [VCTK](https://datashare.ed.ac.uk/handle/10283/2651)  
+- [LJSpeech](https://keithito.com/LJ-Speech-Dataset/)  
+- [Emilia-Dataset](https://huggingface.co/datasets/amphion/Emilia-Dataset)
 
 ### Step 2: Modify Configuration Files
 Before starting training, update the configuration settings
 ```python
-# Open and modify the following file "config/train.yaml"
+# Open and modify the following file "config/train_with_8gpu.yaml"
 # Adjust parameters such as:
 # - log settings
-# - train_path
+# - train_path "dataset/Hubert/libritts_train_clean_100.txt"
 # - save_dir
 # - device (e.g., CPU/GPU)
 ```
@@ -64,7 +80,7 @@ Before starting training, update the configuration settings
 Once the dataset is prepared and the configuration is set, launch the training process:
 ```python
 cd HH-Codec
-python train.py fit --config config/train.yaml
+python train.py fit --config config/train_with_8gpu.yaml
 ```
 
 ## 🧩 How to use HH-codec 
@@ -76,7 +92,7 @@ wav = convert_audio(wav, sr, 24000, 1).unsqueeze(0).unsqueeze(0)
 _, _, _, _, quant, _, index = model.encode(audio)
 # Get quant from index only
 quant = model.quantize.indices_to_codes(index)
-# Reconstruct audio from raw wav
+# Reconstruct audio
 reconstructed_mel, reconstructed_audios = model.decode(quant)
 ```
 

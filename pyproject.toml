@@ -13,13 +13,29 @@ classifiers = [
 
 dependencies = [
     "bigvgan",
-    "swanlab",
+    "wandb",
     "vector_quantize_pytorch",
     "timm",
     "torchaudio",
     "transformers",
-    "jsonargparse[signatures]>=4.40.2",
-    "lightning>=2.5.3",
+    "lightning==2.2.5",
+    "jsonargparse[signatures]>=4.27.7",
+    "albumentations==1.4.4",
+    "lpips",
+    "omegaconf",
+    "torchcrepe",
+    "pystoi",
+    "funasr",
+    "zhconv",
+    "pydub",
+    "onnx",
+    "onnxconverter-common",
+    "fire",
+    "jiwer",
+    "zhon==2.1.1",
+    "lion_pytorch",
+    "beartype",
+    "accelerate"
 ]
 
 [project.optional-dependencies]
